@@ -1,6 +1,8 @@
 #pragma once
 //#define__OBJECT_POOL_H__
 
+
+//T的类型会改变，平台不同，要考虑内存对齐的问题
 template<class T>
 
 //定长内存池
@@ -20,13 +22,46 @@ protected:
 			_bytesize = bytesize;
 			_next = nullptr;
 		}
+		~Block(){
+			free(_start);
+			_bytesize = _byteleft = 0;
+			_next = nullptr;
+
+		}
 	};
 
+	static size_t GetItemSize(){
+		if (sizeof(T) > sizeof(*T)){
+			return sizeof(T);
+		}
+		else{
+			return sizeof(*T);
+		}
+	}
+
 public:
-	ObjectPool(size_t initnum){
+	ObjectPool(size_t initnum = 8){
 		_head = _tail = new Block(initnum * sizeof(T);
 	}
+
+	~Block(){
+		Destory();
+	}
+	void Destory(){
+		Block* cur = _head;
+		while (cur){
+			Block* next = cur->_next;
+			delete cur;
+			cur = next;
+		}
+		_head = _tail = nullptr;
+		_freelist = nullptr;
+	}
 	
+	T*& OBJ_NEXT(T* obj){
+		return *(T**)obj;
+	}
+
 	//申请对象
 	T* New(){
 		T* obj = nullptr;
@@ -43,11 +78,15 @@ public:
 			}
 			obj = (T*)(_tail->_start + (_tail->bytesize - _tail->_byteleft));
 			_tail->byteleft -= sizeof(T);
-			return obj;
 		}
+		new(obj)T();
+		return obj;
+
 	}
 
 	void Delete(T* ptr){
+		ptr->~T();
+
 		if (_freelist == nullptr){
 			_freelist = ptr;
 			//(*(T**)ptr) == nullptr;
